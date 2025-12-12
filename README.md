@@ -1,2 +1,3 @@
-# stranger-things-ml-pipeline
-An end-to-end ML pipeline project analyzing the interaction between character, location, and sentiment
+# Stranger Things: An Analysis of Character, Location, and Sentiment 
+
+
