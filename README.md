@@ -20,4 +20,4 @@ Two datasets were used in this analysis:
 
 An additional dataset, **stranger_words**, was created to assist in the data analysis as a sentiment assigner to *Stranger Things* specific words.
 
-Because the **Jeffrey Lancaster** dataset only contained information from the first two seasons, this analysis is solely of the patterns of the first two seasons of Stranger Things.
+Because the **Jeffrey Lancaster** dataset only contains information from the first two seasons, this analysis is solely of the patterns of the first two seasons of Stranger Things.
