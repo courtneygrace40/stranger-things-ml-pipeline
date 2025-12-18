@@ -31,6 +31,11 @@ font_add(family = "Benguiat", regular = "itc-benguiat-std/ITCBenguiatStdBoldCn.O
 
 I found how to add fonts at this site: <https://github.com/yixuan/showtext>
 
+
+<img src="mike_will_sent.png" alt="Mike and Will Sentiment Graph" style="width:100%; height:auto;">
+
+<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+
 ## Limitations 
 
 There were many limitations to this analysis. First, sentiment data is very difficult to deal with. If I were to expand this, I would want to research to see if there are more proven algorithms to determine the sentiment of a sentence. Sentiment alone doesn't take into account the context in which the words are said, and character presence and location alone cannot truly make up for that. It is also important to know who is speaking to whom, which is not possible in this dataset. This is likely why the sentiment variable didn't have a large effect on whether Mike was in a scene.
