@@ -51,6 +51,12 @@ This model shows the interaction between character and location on sentiment.
 
 The location that Will has the highest average sentiment is the Wheeler home. Mike, on the other hand, has his best sentiment when he was with Will at the Byers Home. However, there is a great variance in sentiment for each person at each location, and it is very different in each location when they are together.
 
+## Analysis
+
+Based on the summaries of the models, the AUC, and the confusion matrices, the model with every variable is significantly better at predicting whether Mike will be in a scene or not. The accuracy is significantly higher at around 0.93 consistently compared to around 0.86 consistently. The AUC for the model with every predictor is around 0.95 consistently, and the AUC for the model with fewer predictors is around 0.86 consistently. However, while the first model is significantly better, the second model is significantly less complex. The greatest improvement from the simpler model to the more complex one is the specificity value.
+
+Because the no-information rate is high, it is not difficult to get a model to a high accuracy rate. The computer could randomly guess whether Mike is in a scene at a very high rate, but these models are still significant and do a better job than a random guess.
+
 ## Limitations 
 
 There were many limitations to this analysis. First, sentiment data is very difficult to deal with. If I were to expand this, I would want to research to see if there are more proven algorithms to determine the sentiment of a sentence. Sentiment alone doesn't take into account the context in which the words are said, and character presence and location alone cannot truly make up for that. It is also important to know who is speaking to whom, which is not possible in this dataset. This is likely why the sentiment variable didn't have a large effect on whether Mike was in a scene.
