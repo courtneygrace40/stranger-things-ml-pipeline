@@ -30,3 +30,19 @@ font_add(family = "Benguiat", regular = "itc-benguiat-std/ITCBenguiatStdBoldCn.O
 ```
 
 I found how to add fonts at this site: <https://github.com/yixuan/showtext>
+
+## Limitations 
+
+There were many limitations to this analysis. First, sentiment data is very difficult to deal with. If I were to expand this, I would want to research to see if there are more proven algorithms to determine the sentiment of a sentence. Sentiment alone doesn't take into account the context in which the words are said, and character presence and location alone cannot truly make up for that. It is also important to know who is speaking to whom, which is not possible in this dataset. This is likely why the sentiment variable didn't have a large effect on whether Mike was in a scene.
+
+Another limitation is that this data is only from the first two seasons. It would be interesting to see how character interactions change and how the overall sentiment of the show changes. For a true analysis of *Stranger Things*, all seasons would need to be used.
+
+This data is also not perfect. It was very difficult to try to match the scenes with the dialogue to determine the sentiment of the scenes and who is present in them.
+
+## Conclusion 
+
+Overall, the best predictor of whether or not Mike is in a scene is a combination of Dustin's presence and the sub-location. However, these are the best predictors because the data is limited. There is not a lot of actual data on what is happening in these scenes, so it is impossible to know if this would work with the rest of the seasons.
+
+It would be more interesting to see if models could predict the sentiment of a scene based on data, or if two characters are present together in a scene. Again, this would need to be done with a more complete dataset.
+
+To answer my original question, yes, it is possible to predict whether or not Mike will be in a scene based on character presence, location, and scene sentiment.
