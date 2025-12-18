@@ -31,10 +31,21 @@ font_add(family = "Benguiat", regular = "itc-benguiat-std/ITCBenguiatStdBoldCn.O
 
 I found how to add fonts at this site: <https://github.com/yixuan/showtext>
 
+## Graphs 
+
+This is a graph that summarizes the positive and negative words and their frequencies in the first two seasons of *Stranger Things*.
+
+<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+
+This graph shows that negative words are far more common in *Stranger Things* than negative words. The most common words are "shit", "whoa", "wrong", "hell", "bad", "stupid", and "crazy". Here, "crazy" is interesting because in *Stranger Things*, "crazy" can sometimes be a positive word. Specifically, Mike tells Will they'll go "crazy together" in a heart-to-heart.
+
+This makes sense because *Stranger Things* is a horror/thriller show. The characters are often in dangerous, serious situations, and it is reflected in their speech.
+
+This model shows the interaction between character and location on sentiment.
 
 <img src="mike_will_sent.png" alt="Mike and Will Sentiment Graph" style="width:100%; height:auto;">
 
-<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+The location that Will has the highest average sentiment is the Wheeler home. Mike, on the other hand, has his best sentiment when he was with Will at the Byers Home. However, there is a great variance in sentiment for each person at each location, and it is very different in each location when they are together.
 
 ## Limitations 
 
