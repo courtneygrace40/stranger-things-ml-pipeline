@@ -53,6 +53,8 @@ The location that Will has the highest average sentiment is the Wheeler home. Mi
 
 ## Sentiment Analysis Algorithm 
 
+Here is the selection of code that is my sentiment analysis per line calculator. Notably, it uses anticipation and surprise as multipliers, as it is less clear-cut if those emotions are good or bad. 
+
 ```{r sentiment-creation, warning=FALSE}
 #The equation used to determine sentiment
 score_data <- test_join %>%
