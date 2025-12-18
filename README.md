@@ -51,74 +51,43 @@ This model shows the interaction between character and location on sentiment.
 
 The location that Will has the highest average sentiment is the Wheeler home. Mike, on the other hand, has his best sentiment when he was with Will at the Byers Home. However, there is a great variance in sentiment for each person at each location, and it is very different in each location when they are together.
 
+## Sentiment Analysis Algorithm 
+
+```{r sentiment-creation, warning=FALSE}
+#The equation used to determine sentiment
+score_data <- test_join %>%
+  mutate(total_score = (-has_fear)-has_disgust-has_anger+
+           has_trust-has_sadness+has_joy+(has_positive*0.25)-
+           (has_negative*0.25))%>%
+  mutate(total_score_int = case_when(
+    has_disgust!=0&has_fear!=0 ~ total_score - (0.5*has_disgust*has_fear),
+    has_trust!=0&has_fear!=0 ~ total_score + (0.5*has_trust*has_fear),
+    has_trust!=0&has_sadness!=0 ~ total_score - (0.5*has_trust*has_sadness),
+    TRUE ~ total_score
+  ))%>%
+  mutate(total_score_surp = case_when(
+    total_score == 0 ~ (-1.5*has_surprise),
+    has_surprise != 0 ~ (1+(has_surprise*0.25))*total_score_int,
+    TRUE ~ total_score_int
+  )) %>%
+  mutate(final_total = case_when(
+    total_score_surp == 0 ~ (-has_anticipation),
+    has_anticipation==0 ~ total_score_surp,
+    has_anticipation != 0 ~ total_score_surp*(1+(0.25*has_anticipation))
+  )) 
+```
+
+
 ## Machine Learning Pipeline
 
-```{r machine-learning, warning=FALSE}
-#This selects all columns but dialogue 
-stranger_things_train <- stranger_things %>%
-  select(-dialogue)
+After fitting my initial model, I graphed the error rates for the model to determine how many trees should be used. I determined that at around 150 trees, the error rates stabilized, as shown in this graph. 
 
-#Splits the data into training and testing data 
-train.index <- createDataPartition(stranger_things_train$Mike_Wheeler, 
-                                   p = 0.8, list = FALSE)
-mike_train <- stranger_things_train[train.index,]
-mike_test <- stranger_things_train[-train.index,]
+<img src="errorratemikefinal.png" alt="Banner" style="width:100%; height:auto;">
 
-#Creates a random forest model with every variable 
-set.seed(233)
-rf_model <- randomForest(Mike_Wheeler ~ ., data = mike_train)
-
-oob.error.data <-data.frame(
-  Trees=rep(1:nrow(rf_model$err.rate),times=3),
-  Type=rep(c("OOB", "Not Present", "Present"), each=nrow(rf_model$err.rate)),
-  Error=c(rf_model$err.rate[,"OOB"],
-          rf_model$err.rate[,"No"],
-          rf_model$err.rate[,"Yes"]))
-
-#Plots error rate 
-ggplot(data=oob.error.data, aes(x=Trees, y=Error))+
-  geom_line(aes(color=Type))+theme_minimal()+
-  theme(text = element_text(family = "Benguiat", size = 12))
-
-# Define tuning grid: try several values of mtry
-tune_grid <- expand.grid(mtry = 1:10)
-# Set up the training function
-ctrl <- trainControl(method = "oob") # Use OOB estimate for training evaluation
-# Fit the randomForest using different mtry values
-set.seed(345)
-
-#Tunes the model with every variable 
-set.seed(345)
-rf_tuned <- train(Mike_Wheeler ~ .,
-                  data = mike_train,
-                  method = "rf",
-                  trControl = ctrl,
-                  tuneGrid = tune_grid,
-                  ntree = 150,
-)
-
-#Creates the model with every variable 
-set.seed(5632)
-rf_model_final <- randomForest(Mike_Wheeler ~ ., 
-                               data = mike_train,
-                               mtry=rf_tuned$finalModel$tuneValue$mtry, 
-                               ntree=150, importance=T)
-
-#Model evaluation: All variables 
-predicted_test <- predict(rf_model_final, newdata=mike_test, type="response")
-predicted_prob_test <- predict(rf_model_final, newdata=mike_test, type="prob")
-ROC<- roc(mike_test$Mike_Wheeler~predicted_prob_test[,2], plot=TRUE,legacy.axes=T)
-test_pred <- predict(rf_model_final, newdata = mike_test)
-conf_matrix <- confusionMatrix(data=test_pred, mike_test$Mike_Wheeler)
-cat("\n\n-----ALL VARIABLES-----\n\n")
-auc(ROC)
-print(rf_model_final)
-print(conf_matrix)
-```
+After tuning my machine learning model, I analyzed the influential factors. This helped me determine if I could use any of the factors to create a less complex model. As shown here, Dustin Henderson's presence and subLocation are two of the most important factors in determining if Mike is likely to be in a scene. 
 
 <img src="influentialfactorslargemodel.png" alt="Influential Factors Model" style="width:100%; height:auto;">
 
-<img src="errorratemikefinal.png" alt="Banner" style="width:100%; height:auto;">
 ## Analysis
 
 Based on the summaries of the models, the AUC, and the confusion matrices, the model with every variable is significantly better at predicting whether Mike will be in a scene or not. The accuracy is significantly higher at around 0.93 consistently compared to around 0.86 consistently. The AUC for the model with every predictor is around 0.95 consistently, and the AUC for the model with fewer predictors is around 0.86 consistently. However, while the first model is significantly better, the second model is significantly less complex. The greatest improvement from the simpler model to the more complex one is the specificity value.
