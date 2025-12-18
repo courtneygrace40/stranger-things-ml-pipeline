@@ -21,3 +21,12 @@ Two datasets were used in this analysis:
 An additional dataset, **stranger_words**, was created to assist in the data analysis as a sentiment assigner to *Stranger Things* specific words.
 
 Because the **Jeffrey Lancaster** dataset only contains information from the first two seasons, this analysis is solely of the patterns of the first two seasons of Stranger Things.
+
+This adds the font of *Stranger Things* to the project.
+
+```{r font-addition, warning=FALSE}
+showtext_auto()
+font_add(family = "Benguiat", regular = "itc-benguiat-std/ITCBenguiatStdBoldCn.OTF")
+```
+
+I found how to add fonts at this site: <https://github.com/yixuan/showtext>
