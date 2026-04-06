@@ -12,9 +12,9 @@ Specifically, in this analysis, the "someone" will be Mike Wheeler. Mike is one 
 
 The large random forest model (all attributes as predictors) I created had an AUC of 0.9887. The smaller random forest model (containing Dustin_Henderson, episode, Lucas_Sinclair, subLocation, and season) I created had an AUC of 0.9642. Here are the graphs: 
 
-<img src="auccurvelarge.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+<img src="/images/auccurvelarge.png" alt="Sentiment Graph" style="width:100%; height:auto;">
 
-<img src="aucsmall.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+<img src="/images/aucsmall.png" alt="Sentiment Graph" style="width:100%; height:auto;">
 
 ## Datasets
 
@@ -43,7 +43,7 @@ I found how to add fonts at this site: <https://github.com/yixuan/showtext>
 
 This is a graph that summarizes the positive and negative words and their frequencies in the first two seasons of *Stranger Things*.
 
-<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+<img src="/images/sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
 
 This graph shows that negative words are far more common in *Stranger Things* than negative words. The most common words are "shit", "whoa", "wrong", "hell", "bad", "stupid", and "crazy". Here, "crazy" is interesting because in *Stranger Things*, "crazy" can sometimes be a positive word. Specifically, Mike tells Will they'll go "crazy together" in a heart-to-heart.
 
@@ -53,7 +53,7 @@ This makes sense because *Stranger Things* is a horror/thriller show. The charac
 
 This model shows the interaction between character and location on sentiment.
 
-<img src="mike_will_sent.png" alt="Mike and Will Sentiment Graph" style="width:100%; height:auto;">
+<img src="/images/mike_will_sent.png" alt="Mike and Will Sentiment Graph" style="width:100%; height:auto;">
 
 The location that Will has the highest average sentiment is the Wheeler home. Mike, on the other hand, has his best sentiment when he was with Will at the Byers Home. However, there is a great variance in sentiment for each person at each location, and it is very different in each location when they are together.
 
@@ -90,11 +90,11 @@ score_data <- test_join %>%
 
 After fitting my initial model, I graphed the error rates for the model to determine how many trees should be used. I determined that at around 150 trees, the error rates stabilized, as shown in this graph. 
 
-<img src="errorratemikefinal.png" alt="Banner" style="width:100%; height:auto;">
+<img src="/images/errorratemikefinal.png" alt="Banner" style="width:100%; height:auto;">
 
 After tuning my machine learning model, I analyzed the influential factors. This helped me determine if I could use any of the factors to create a less complex model. As shown here, Dustin Henderson's presence and subLocation are two of the most important factors in determining if Mike is likely to be in a scene. 
 
-<img src="influentialfactorslargemodel.png" alt="Influential Factors Model" style="width:100%; height:auto;">
+<img src="/images/influentialfactorslargemodel.png" alt="Influential Factors Model" style="width:100%; height:auto;">
 
 ## Limitations 
 
