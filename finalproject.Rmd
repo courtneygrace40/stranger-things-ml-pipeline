@@ -1,0 +1,550 @@
+---
+title: "Stranger Things: An Analysis of Sentiment, Location, and Character Interaction"
+author: "Courtney Sweeney"
+output:
+  html_document: default
+  pdf_document: default
+date: "2025-12-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidytuesdayR)
+library(tidyverse)
+library(tidytext) #new package
+library(textdata) #new package
+library(jsonlite)
+library(dplyr)
+library(tidytext)
+library(tidyr)
+library(DescTools)
+library(randomForest) # Install new package for Random Forest
+library(openintro) # Install new package for data
+library(caret)
+library(pROC)
+library(rpart)
+library(rpart.plot)
+library(shadowtext)
+library(ggfx)
+library(ggtext)
+library(showtext)
+library(sysfonts)
+```
+
+```{r image, echo=FALSE, fig.cap="Stranger Things Logo (from: https://logos-world.net/stranger-things-logo/)", out.width='100%'}
+knitr::include_graphics("strangerthingslogo.png")
+```
+
+# Stranger Things: An Analysis of Sentiment, Location, and Character Interaction
+
+*Stranger Things* has been a pop culture phenomenon since it originally aired in 2016. The first half of the latest and final season dropped on November 26, 2025. The show has an intricate network of characters and locations whose interactions can be studied to understand any patterns among appearances of characters.
+
+The research question for this analysis is:
+
+"Can we predict if someone will be in a scene based on sentiment, character presence, and location?"
+
+Specifically, in this analysis, the "someone" will be Mike Wheeler. Mike is one of the main characters of Stranger Things, and he has many scenes in seasons 1 and 2. This means he has a large dataset to pull from to understand the patterns of his behavior.
+
+## Datasets
+
+Two datasets were used in this analysis:
+
+-   **TidyTuesday**: contains all of the dialogue and episodes of *Stranger Things*
+
+-   [**Jeffrey Lancaster**](%22%3Chttps://raw.githubusercontent.com/jeffreylancaster/stranger-things/master/data/episodes.json%3E%22): contains all of the information about specific scenes from *Stranger Things*, including characters that are present
+
+An additional dataset, **stranger_words**, was created to assist in the data analysis as a sentiment assigner to *Stranger Things* specific words.
+
+Because the **Jeffrey Lancaster** dataset only contained information from the first two seasons, this analysis is solely of the patterns of the first two seasons of Stranger Things.
+
+```{r datasets, echo=FALSE, warning=FALSE}
+stranger_words <- read_csv("stranger_words.csv")
+
+tidytuesday <- tidytuesdayR::tt_load('2022-10-18')
+st_episodes <- tidytuesday$episodes
+st_dialogue <- tidytuesday$stranger_things_all_dialogue
+
+url <- "https://raw.githubusercontent.com/jeffreylancaster/stranger-things/master/data/episodes.json"
+raw_json <- fromJSON(url)
+
+episodes <- raw_json$episodes
+scenes <- episodes$scenes
+```
+
+This adds the font of *Stranger Things* to the project.
+
+```{r font-addition, warning=FALSE}
+showtext_auto()
+font_add(family = "Benguiat", regular = "itc-benguiat-std/ITCBenguiatStdBoldCn.OTF")
+```
+
+I found how to add fonts at this site: <https://github.com/yixuan/showtext>
+
+## Data Cleaning
+
+### Initial Cleaning
+
+Before working with the datasets to understand the information present, the two datasets (dialogue and scenes) needed to be joined to compile the information about every scene (location, characters, dialogue) into one usable dataset.
+
+Because one of the datasets was a JSON file and had nested data, it had to be cleaned. The character data was in dataframes with different amounts of columns.
+
+*Note: my select was giving me errors, so I found that dplyr:: before select allows it to function normally. I use this throughout the project.*
+
+```{r initial-cleaning, warning=FALSE}
+
+#Unnest scene data from the dataset 
+scenes_data <- raw_json$episodes %>% 
+  unnest(scenes) %>% 
+  mutate(scene_id = row_number()) #scene identification
+
+#List of the prominent Season 1 and Season 2 characters, as 
+#they are the most important interactions
+main_cast <- c("Eleven", "Mike Wheeler", "Dustin Henderson", "Lucas Sinclair", 
+               "Will Byers", "Jim Hopper", "Joyce Byers", "Nancy Wheeler",
+               "Jonathan Byers", "Steve Harrington", "Max Mayfield")
+
+
+scene_matrix <- scenes_data %>%
+  unnest_wider(characters)  %>% #regular unnest did not work ->   https://tidyr.tidyverse.org/reference/unnest_wider.html
+  #https://tidyr.tidyverse.org/reference/separate_rows.html
+  separate_rows(name, sep = ",") %>% 
+  
+  #This selects only those in the main cast
+  filter(name %in% main_cast)%>%
+  dplyr::select(1:12, scene_id) %>%
+  mutate(present = 1) %>%
+  pivot_wider(names_from = name, 
+              values_from = present, 
+              values_fill = 0) #LINK
+
+#This creates a start and end time for each scene; the data from JSON is 
+#counting down, so the first scene begins at 48:21. That had to be adjusted 
+clean_scenes <- scene_matrix %>%
+  mutate(
+    raw_start = period_to_seconds(hms(sceneStart)), #https://lubridate.tidyverse.org/reference/period_to_seconds.html, 
+#https://lubridate.tidyverse.org/reference/hms.html
+    raw_end   = period_to_seconds(hms(sceneEnd)) 
+  ) %>%
+  group_by(seasonNum, episodeNum) %>% #groups into every episode
+  mutate(anchor_time = max(raw_start)) %>% #finds what the largest start time 
+  #is, as that is the length of the show 
+  ungroup() %>%
+  mutate(
+    scene_start_elapsed = anchor_time - raw_start,
+    scene_end_elapsed   = anchor_time - raw_end
+  ) 
+
+clean_dialogue <- st_dialogue %>%
+  filter(!is.na(start_time)) %>% #if scene doesn't have start time, it is cut 
+  mutate(
+    dialogue_start = period_to_seconds(hms(start_time)) #finds the second 
+    #that the dialogue started so that it can be matched into a scene
+  )
+
+#most likely not exact, so it catches that
+scenes_ready <- clean_scenes %>%
+  mutate(
+    start_buffer = scene_start_elapsed - 2,  
+    end_buffer   = scene_end_elapsed + 2
+  )
+
+#Joins the two datasets on when the dialogue starts 
+final_dataset <- clean_dialogue %>%
+  inner_join(
+    scenes_ready, 
+    by = join_by(
+      season == seasonNum,   
+      episode == episodeNum, 
+      dialogue_start >= start_buffer,
+      dialogue_start <= end_buffer   
+    )
+  )
+
+#Cleans up the final dataset
+final_dataset <- final_dataset %>%
+  group_by(season, episode, dialogue_start) %>%
+  slice(1) %>% #CHECK THIS 
+  ungroup() %>%
+  filter(!is.na(dialogue))
+
+final_dataset_15 <- final_dataset %>%
+  filter(season==1&episode==5)
+```
+
+### Creating Sentiment Data
+
+There is no pre-existing dataset that lists sentiment for every line of *Stranger Things*. Instead, it had to be created by joining every word found in Seasons 1 and 2 with a sentiment dataset.
+
+Two sentiment datasets were chosen for this task: **Bing** and **NRC**. The **Bing** dataset labels words as either positive or negative. The **NRC** dataset has trust, fear, negative, sadness, anger, surprise, positive, disgust, joy, and anticipation as classifiers.
+
+```{r sentiment-cleaning, warning=FALSE}
+#This unnests words 
+final_clean_words <- final_dataset %>%
+  unnest_tokens(word, dialogue)
+
+#This counts the words 
+final_count_words_2 <- final_clean_words %>%
+  count(word, sort=TRUE)
+
+data(stop_words)
+
+#Joins the word counts to stop words, eliminating stop words through an anti-join
+tidy_fcw_2 <- final_count_words_2 %>%
+  anti_join(stop_words, by="word")
+
+#Loads sentiments data 
+sentiments_afinn <-get_sentiments("afinn")
+sentiments_bing <-get_sentiments("bing")
+sentiments_nrc <-get_sentiments("nrc")
+
+#joins with sentiments from Bing 
+sentiment_st <-tidy_fcw_2%>%
+  inner_join(sentiments_bing, by="word")
+
+#This filters so its only the most common words 
+sentiment_st%>%
+  filter(n > 16) %>%
+  mutate(word= reorder(word, n)) #makes sure it is a factor
+  
+
+#creates sentiment as a factor 
+sentiment_st$sentiment <- as.factor((sentiment_st$sentiment))
+levels(sentiment_st$sentiment)
+levels(sentiment_st$sentiment) <- c("Negative", "Positive")
+
+#pivots the sentiments to be wider, and to only do distinct words
+sentiments_nrc <- sentiments_nrc %>%
+  mutate(val = 1) %>%
+  distinct(word, sentiment, .keep_all = TRUE) %>% 
+  pivot_wider(names_from = sentiment, values_from = val, values_fill = 0)
+
+#Binds the Stranger Things words and sentiment words together 
+sentiments_st <- rbind(sentiments_nrc, stranger_words)
+
+#Changes existing words that are expletives
+target_words <- c("god", "jesus", "christ", "lord")
+
+sentiments_st <- sentiments_st %>%
+  mutate(
+    joy      = ifelse(word %in% target_words, 0, joy),
+    trust    = ifelse(word %in% target_words, 0, trust),
+    positive = ifelse(word %in% target_words, 0, positive),
+    negative = ifelse(word %in% target_words, 1, negative),
+    anger    = ifelse(word %in% target_words, 1, anger), 
+    surprise = ifelse(word %in% target_words, 1, surprise)
+  )
+
+#Changes words that are negative in Stranger Things
+trauma_words <- c("rainbow", "sunflower", "gate")
+sentiments_st <- sentiments_st %>%
+  mutate(
+    joy      = ifelse(word %in% trauma_words, 0, joy),
+    trust    = ifelse(word %in% trauma_words, 0, trust),
+    positive = ifelse(word %in% trauma_words, 0, positive),
+    fear     = ifelse(word %in% trauma_words, 1, fear),
+    negative = ifelse(word %in% trauma_words, 1, negative),
+    joy      = ifelse(word == "crazy", 1, joy),
+    trust    = ifelse(word == "crazy", 1, trust),
+    fear     = ifelse(word == "ghost", 0, fear),
+    joy      = ifelse(word == "ghost", 1, joy)
+  )
+```
+
+This is a graph that summarizes the positive and negative words and their frequencies in the first two seasons of *Stranger Things*.
+
+```{r graph-sentiment, echo=FALSE, warning=FALSE}
+sentiment_st %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 25) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  scale_fill_manual(values = c("Negative" = "#B1281E", "Positive"="#81A1C1"))+
+  geom_col(show.legend = FALSE, color="black") +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Contribution to Sentiment",y = NULL, 
+       title="Most Common Words in Stranger Things Seasons 1 and 2", 
+       subtitle="Grouped by Sentiment")+theme_minimal()+
+  theme(text = element_text(color="white",family = "Benguiat", size = 12))
+```
+
+This graph shows that negative words are far more common in *Stranger Things* than negative words. The most common words are "shit", "whoa", "wrong", "hell", "bad", "stupid", and "crazy". Here, "crazy" is interesting because in *Stranger Things*, "crazy" can sometimes be a positive word. Specifically, Mike tells Will they'll go "crazy together" in a heart-to-heart.
+
+This makes sense because *Stranger Things* is a horror/thriller show. The characters are often in dangerous, serious situations, and it is reflected in their speech.
+
+### Sentiment Equation
+
+In order to understand the sentiment of each line, I created a formula to calculate sentiment using all of the different categories that NRC puts words into. First, the sum for each category for a line based on the words present is created. Then, the equation is applied. It uses surprise and anticipation as multipliers.
+
+```{r sentiment-creation, warning=FALSE}
+#Creates row number so data is not lost and can still be grouped by row
+processed_data <- final_dataset %>%
+  mutate(row_id = row_number()) 
+
+#Unnests words and joins with sentiments on words
+sentiment_scores <- processed_data %>%
+  unnest_tokens(word, dialogue)  %>%
+  inner_join(sentiments_st, by = "word")
+
+#Sums the sentiments of each line grouping by row id
+sentiment_scores_2 <- sentiment_scores %>%
+  group_by(row_id) %>%
+  summarize(
+    has_fear = sum(fear),
+    has_disgust = sum(disgust),
+    has_anger = sum(anger),
+    has_anticipation = sum(anticipation),
+    has_trust = sum(trust), 
+    has_sadness = sum(sadness),
+    has_surprise = sum(surprise),
+    has_joy = sum(joy),
+    has_negative = sum(negative),
+    has_positive = sum(positive)
+  )
+
+#joins this data with the rest of the Stranger Things data
+test_join <- processed_data %>%
+  right_join(sentiment_scores_2, by="row_id")
+
+#The equation used to determine sentiment
+score_data <- test_join %>%
+  mutate(total_score = (-has_fear)-has_disgust-has_anger+
+           has_trust-has_sadness+has_joy+(has_positive*0.25)-
+           (has_negative*0.25))%>%
+  mutate(total_score_int = case_when(
+    has_disgust!=0&has_fear!=0 ~ total_score - (0.5*has_disgust*has_fear),
+    has_trust!=0&has_fear!=0 ~ total_score + (0.5*has_trust*has_fear),
+    has_trust!=0&has_sadness!=0 ~ total_score - (0.5*has_trust*has_sadness),
+    TRUE ~ total_score
+  ))%>%
+  mutate(total_score_surp = case_when(
+    total_score == 0 ~ (-1.5*has_surprise),
+    has_surprise != 0 ~ (1+(has_surprise*0.25))*total_score_int,
+    TRUE ~ total_score_int
+  )) %>%
+  mutate(final_total = case_when(
+    total_score_surp == 0 ~ (-has_anticipation),
+    has_anticipation==0 ~ total_score_surp,
+    has_anticipation != 0 ~ total_score_surp*(1+(0.25*has_anticipation))
+  )) 
+```
+
+### Final Organization
+
+This section makes some final changes to prepare it for the random forest model, including changing some aspects of the data frame into factors.
+
+```{r final-organization, warning=FALSE}
+#
+score_data_clean <- score_data %>%
+  mutate(across(where(is.numeric), ~replace_na(., 0))) 
+#replaces blank values with 0 if the column is numeric,
+#https://dplyr.tidyverse.org/reference/across.html
+
+#Selects only the columns needed 
+stranger_things <- score_data_clean %>%
+  dplyr::select(season, episode, dialogue, location, subLocation, 20:30, final_total)
+
+#This makes the names cleaner 
+names(stranger_things) <- gsub(" ", "_", names(stranger_things)) #R's version of RegEx, https://www.digitalocean.com/community/tutorials/sub-and-gsub-function-r
+
+#This creates factors for every character that they either have a 1 or 0 if present
+stranger_things$Mike_Wheeler <- as.factor(stranger_things$Mike_Wheeler)
+stranger_things$Dustin_Henderson <- as.factor(stranger_things$Dustin_Henderson)
+stranger_things$Lucas_Sinclair <- as.factor(stranger_things$Lucas_Sinclair)
+stranger_things$Will_Byers <- as.factor(stranger_things$Will_Byers)
+stranger_things$Nancy_Wheeler <- as.factor(stranger_things$Nancy_Wheeler)
+stranger_things$Jim_Hopper <- as.factor(stranger_things$Jim_Hopper)
+stranger_things$Joyce_Byers <- as.factor(stranger_things$Joyce_Byers)
+stranger_things$Jonathan_Byers <- as.factor(stranger_things$Jonathan_Byers)
+stranger_things$Steve_Harrington <- as.factor(stranger_things$Steve_Harrington)
+stranger_things$Eleven <- as.factor(stranger_things$Eleven)
+stranger_things$Max_Mayfield <- as.factor(stranger_things$Max_Mayfield)
+stranger_things$location <- as.factor(stranger_things$location)
+stranger_things$subLocation <- as.factor(stranger_things$subLocation)
+
+#This changes the levels into "Yes" and "No"
+levels(stranger_things$Mike_Wheeler) <- c("Yes", "No")
+levels(stranger_things$Dustin_Henderson) <- c("Yes", "No")
+levels(stranger_things$Lucas_Sinclair) <-  c("Yes", "No")
+levels(stranger_things$Will_Byers) <-  c("Yes", "No")
+levels(stranger_things$Nancy_Wheeler) <-  c("Yes", "No")
+levels(stranger_things$Jim_Hopper) <-  c("Yes", "No")
+levels(stranger_things$Joyce_Byers) <- c("Yes", "No")
+levels(stranger_things$Jonathan_Byers) <-  c("Yes", "No")
+levels(stranger_things$Steve_Harrington) <-  c("Yes", "No")
+levels(stranger_things$Eleven) <-  c("Yes", "No")
+levels(stranger_things$Max_Mayfield) <-  c("Yes", "No")
+```
+
+## Machine Learning
+
+To answer the research question, I used a random forest model. I wanted to see how accurately different random forest models can specifically predict whether Mike will be in a scene or not.
+
+To do this, I fit two models: one with every variable (excluding dialogue) and one with only Dustin, Lucas, Will, sub-location, and final sentiment total.
+
+```{r machine-learning, warning=FALSE}
+#This selects all columns but dialogue 
+stranger_things_train <- stranger_things %>%
+  select(-dialogue)
+
+#Splits the data into training and testing data 
+set.seed(233)
+train.index <- createDataPartition(stranger_things_train$Mike_Wheeler, 
+                                   p = 0.8, list = FALSE)
+mike_train_messy <- stranger_things_train[train.index,]
+mike_test <- stranger_things_train[-train.index,]
+
+#Balances the data
+set.seed(123)
+mike_train <- downSample(x = mike_train_messy %>% select(-Mike_Wheeler),
+                                  y = mike_train_messy$Mike_Wheeler,
+                                  yname = "Mike_Wheeler")
+
+#Creates a random forest model with every variable 
+rf_model <- randomForest(Mike_Wheeler ~ ., data = mike_train)
+
+oob.error.data <-data.frame(
+  Trees=rep(1:nrow(rf_model$err.rate),times=3),
+  Type=rep(c("OOB", "Not Present", "Present"), each=nrow(rf_model$err.rate)),
+  Error=c(rf_model$err.rate[,"OOB"],
+          rf_model$err.rate[,"No"],
+          rf_model$err.rate[,"Yes"]))
+
+#Plots error rate 
+ggplot(data=oob.error.data, aes(x=Trees, y=Error))+
+  geom_line(aes(color=Type))+theme_minimal()+
+  theme(text = element_text(family = "Benguiat", size = 12))
+
+# Define tuning grid: try several values of mtry
+tune_grid <- expand.grid(mtry = 1:10)
+# Set up the training function
+ctrl <- trainControl(method = "oob", classProbs = TRUE, savePredictions = TRUE) # Use OOB estimate for training evaluation
+# Fit the randomForest using different mtry values
+```
+
+```{r machine-learning-tuned-small, warning=FALSE}
+set.seed(345)
+#Tunes the model with only three characters, subLocation, and 
+#final sentiment total 
+rf_model_small <- randomForest(Mike_Wheeler ~ Dustin_Henderson+episode+Lucas_Sinclair+subLocation+season, data = mike_train)
+rf_tuned_small <- train(Mike_Wheeler ~ Dustin_Henderson+episode+Lucas_Sinclair+subLocation+season,
+                  data = mike_train,
+                  method = "rf",
+                  metric="ROC",
+                  trControl = ctrl,
+                  tuneGrid = tune_grid,
+                  ntree = 200,
+)
+```
+
+```{r machine-learning-tuned-large, warning=FALSE}
+#Tunes the model with every variable 
+set.seed(345)
+rf_tuned <- train(Mike_Wheeler ~ season + episode + subLocation + 
+                  Dustin_Henderson + Will_Byers + Lucas_Sinclair + 
+                  Nancy_Wheeler + Jim_Hopper + Joyce_Byers + 
+                  Jonathan_Byers + Steve_Harrington + Eleven + 
+                  Max_Mayfield + final_total,
+                  data = mike_train,
+                  method = "rf",
+                  metric = "ROC",
+                  trControl = ctrl,
+                  tuneGrid = tune_grid,
+                  ntree = 200,
+)
+```
+
+```{r machine-learning-eval, warning=FALSE}
+#Model evaluation: All variables 
+predicted_test <- predict(rf_tuned, newdata=mike_test, type="raw")
+predicted_prob_test <- predict(rf_tuned, newdata=mike_test, type="prob")
+ROC<- roc(mike_test$Mike_Wheeler~predicted_prob_test[,2], plot=TRUE,legacy.axes=T)
+test_pred <- predict(rf_tuned, newdata = mike_test)
+conf_matrix <- confusionMatrix(data=test_pred, mike_test$Mike_Wheeler)
+cat("\n\n-----ALL VARIABLES-----\n\n")
+auc(ROC)
+print(rf_tuned)
+print(conf_matrix)
+```
+
+```{r machine-learning-eval-small, warning=FALSE}
+#Model evaluation: Small
+predicted_test_small <- predict(rf_tuned_small, 
+                                newdata=mike_test, type="raw")
+predicted_prob_test_small <- predict(rf_tuned_small, 
+                                     newdata=mike_test, type="prob")
+ROC_small<- roc(mike_test$Mike_Wheeler~predicted_prob_test_small[,2], 
+                plot=TRUE,legacy.axes=T)
+test_pred_small <- predict(rf_tuned_small, newdata = mike_test)
+conf_matrix_small <- confusionMatrix(data=test_pred_small, mike_test$Mike_Wheeler)
+cat("\n\n-----SMALL-----\n\n")
+auc(ROC_small)
+print(rf_tuned_small)
+print(conf_matrix_small)
+```
+
+### Analysis
+
+Based on the summaries of the models, the AUC, and the confusion matrices, the model with every variable is significantly better at predicting whether Mike will be in a scene or not. The accuracy is significantly higher at 0.9635 compared to 0.8904. The AUC for the model with every predictor is 0.9887, and the AUC for the model with fewer predictors is 0.935. However, while the first model is significantly better, the second model is significantly less complex. The greatest improvement from the simpler model to the more complex one is the specificity value.
+
+Because the no-information rate it high, it is not difficult to get a model to a high accuracy rate. The computer could randomly guess whether Mike is in a scene at a very high rate, but these models are still significant and do a better job than random guess.
+
+## Plots
+
+Here, the plots show what factors are the most important in influencing whether or not the model will predict that Mike is in the scene.
+
+```{r plots, echo=FALSE, warning=FALSE}
+varImpPlot(rf_model, main = "Influential Factors Random Forest")
+varImpPlot(rf_model_small, main = "Influential Factors Random Forest Small")
+```
+
+The graph for the original model with every variable is how I chose the variables for the second model. It shows that the greatest predictors for whether Mike will be in a scene are Dustin Henderson's presence and the sub-location.
+
+This model shows the interaction between character and location on sentiment.
+
+```{r plots-two, echo=FALSE, warning=FALSE}
+stranger_things <- stranger_things %>%
+  group_by(season, episode) %>%
+  mutate(row_id = row_number()) %>%
+  ungroup()
+
+stranger_things_mike_will_onlysubl <- stranger_things %>%
+  filter(Mike_Wheeler=="Yes"|Will_Byers=="Yes") %>%
+  dplyr::select(season, episode, dialogue, location, subLocation, Mike_Wheeler, 
+                Will_Byers, final_total, row_id) %>%
+  group_by(subLocation, season, Mike_Wheeler, Will_Byers) %>%
+  summarize(sent_average = mean(final_total, na.rm = TRUE)) %>%
+  mutate(character_app = case_when(
+    Mike_Wheeler=="Yes"&Will_Byers=="Yes"~"Mike+Will",
+    Mike_Wheeler=="No"&Will_Byers=="Yes"~"Will",
+    Mike_Wheeler=="Yes"&Will_Byers=="No"~"Mike",
+  )) %>%
+  filter(subLocation %in% c("Arcade", "Byers Home","Wheeler Home"))%>%
+  ungroup()%>%
+  filter(season==2)
+
+ggplot(stranger_things_mike_will_onlysubl, aes(x=subLocation, y=sent_average)) + 
+  geom_col(aes(fill=character_app), position=position_dodge(preserve="single"), color="black")+scale_fill_manual(values = c("Mike" = "#20265c", "Will"="#e3c52d",                                                                                             "Mike+Will"="#099112"))+
+  labs(x = "Sublocation",y = "Sentiment Average", 
+       title="Sentiment Average per Sub-Location in Season 2", 
+       subtitle="Based on Mike & Will", fill="Character Appearance")+
+      theme_minimal()+theme(text = element_text(family = "Benguiat", size = 12))
+```
+
+The location that Will has the highest average sentiment is the Wheeler home. Mike, on the other hand, has his best sentiment when he was with Will at the Byers Home. However, there is a great variance in sentiment for each person at each location and is very different in each location when they are together.
+
+## Limitations 
+
+There were many limitations to this analysis. First, sentiment data is very difficult to deal with. If I were to expand this, I would want to research to see if there are more proven algorithms to determine sentiment of a sentence. Sentiment alone doesn't take into account the context the words are said in, and character presence and location alone cannot truly make up for that. It is also important to know who is speaking to who, which is not possible in this dataset. This is likely why the sentiment variable didn't have a large effect on whether Mike was in a scene.
+
+Another limitation is that this data is only from the first two seasons. It would be interesting to see how character interactions change and how the overall sentiment of the show changed. For a true analysis of *Stranger Things*, all seasons would need to be used.
+
+This data is also not perfect. It was very difficult to try to match the scenes with the dialogue to determine sentiment of scenes and who is present in them.
+
+## Conclusion 
+
+Overall, the best predictor of whether or not Mike is in a scene is a combination of Dustin's presence and the sub-location. However, these are the best predictors because the data is limited. There is not a lot of actual data on what is happening in these scenes present, so it is impossible to know if this would work with the rest of the seasons.
+
+It would be more interesting to see if models could predict the sentiment of a scene based on data, or if two characters are present together in a scene. Again, this would need to be done with a more complete dataset.
+
+To answer my original question, yes, it is possible to predict whether or not Mike will be in a scene based on character presence, location, and scene sentiment.
