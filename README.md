@@ -10,6 +10,12 @@ The research question for this analysis is:
 
 Specifically, in this analysis, the "someone" will be Mike Wheeler. Mike is one of the main characters in Stranger Things, and he appears in numerous scenes throughout seasons 1 and 2. This means he has a large dataset to pull from to understand the patterns of his behavior.
 
+The large random forest model (all attributes as predictors) I created had an AUC of 0.9887. The smaller random forest model (containing Dustin_Henderson, episode, Lucas_Sinclair, subLocation, and season) I created had an AUC of 0.9642. Here are the graphs: 
+
+<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+
+<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+
 ## Datasets
 
 Two datasets were used in this analysis:
@@ -89,12 +95,6 @@ After fitting my initial model, I graphed the error rates for the model to deter
 After tuning my machine learning model, I analyzed the influential factors. This helped me determine if I could use any of the factors to create a less complex model. As shown here, Dustin Henderson's presence and subLocation are two of the most important factors in determining if Mike is likely to be in a scene. 
 
 <img src="influentialfactorslargemodel.png" alt="Influential Factors Model" style="width:100%; height:auto;">
-
-## Analysis
-
-Based on the summaries of the models, the AUC, and the confusion matrices, the model with every variable is significantly better at predicting whether Mike will be in a scene or not. The accuracy is significantly higher at around 0.93 consistently compared to around 0.86 consistently. The AUC for the model with every predictor is around 0.95 consistently, and the AUC for the model with fewer predictors is around 0.86 consistently. However, while the first model is significantly better, the second model is significantly less complex. The greatest improvement from the simpler model to the more complex one is the specificity value.
-
-Because the no-information rate is high, it is not difficult to get a model to a high accuracy rate. The computer could randomly guess whether Mike is in a scene at a very high rate, but these models are still significant and do a better job than a random guess.
 
 ## Limitations 
 
