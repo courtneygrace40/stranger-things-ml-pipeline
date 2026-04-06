@@ -12,9 +12,9 @@ Specifically, in this analysis, the "someone" will be Mike Wheeler. Mike is one 
 
 The large random forest model (all attributes as predictors) I created had an AUC of 0.9887. The smaller random forest model (containing Dustin_Henderson, episode, Lucas_Sinclair, subLocation, and season) I created had an AUC of 0.9642. Here are the graphs: 
 
-<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+<img src="auclarge.png" alt="Sentiment Graph" style="width:100%; height:auto;">
 
-<img src="sentimentgraph.png" alt="Sentiment Graph" style="width:100%; height:auto;">
+<img src="aucsmall.png" alt="Sentiment Graph" style="width:100%; height:auto;">
 
 ## Datasets
 
